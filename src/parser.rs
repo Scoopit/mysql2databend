@@ -13,11 +13,12 @@ pub struct Parser {
 enum Stmt {
     InCreateTable,
     CreateTable,
+    DropTable,
     CreateDatabase,
     Use,
     InsertInto,
     // this will be discarded
-    Other,
+    Ignore,
 }
 
 pub enum StateChange {
@@ -30,7 +31,7 @@ impl Parser {
     pub fn new() -> Self {
         Self {
             buf: Vec::with_capacity(8129),
-            current: Stmt::Other,
+            current: Stmt::Ignore,
         }
     }
 
@@ -56,6 +57,10 @@ impl Parser {
                 let db = String::from_utf8(use_stmt.get(1).unwrap().as_bytes().to_vec())?;
 
                 Ok(StateChange::Database(db))
+            } else if let Some(create_stmt) = DROP_TABLE.captures(&line) {
+                self.current = Stmt::DropTable;
+                let table = String::from_utf8(create_stmt.get(1).unwrap().as_bytes().to_vec())?;
+                Ok(StateChange::Table(table))
             } else if let Some(create_stmt) = CREATE.captures(&line) {
                 self.current = Stmt::InCreateTable;
                 let table = String::from_utf8(create_stmt.get(1).unwrap().as_bytes().to_vec())?;
@@ -67,7 +72,7 @@ impl Parser {
                 self.current = Stmt::InsertInto;
                 Ok(StateChange::None)
             } else {
-                self.current = Stmt::Other;
+                self.current = Stmt::Ignore;
                 Ok(StateChange::None)
             }
         }
@@ -83,7 +88,7 @@ impl Parser {
 
     pub fn output_database_content<W: Write>(&self, mut out: W) -> std::io::Result<()> {
         match self.current {
-            Stmt::InsertInto | Stmt::CreateTable => out.write_all(&self.buf),
+            Stmt::InsertInto | Stmt::CreateTable | Stmt::DropTable => out.write_all(&self.buf),
             _ => Ok(()),
         }
     }
@@ -155,6 +160,9 @@ lazy_static! {
     static ref CREATE_DB: Regex = Regex::new("^CREATE DATABASE .*`([^`]+)`").unwrap();
     // create table
     static ref CREATE: Regex = Regex::new("^CREATE TABLE `([^`]+)`").unwrap();
+
+    static ref DROP_TABLE: Regex = Regex::new("^DROP TABLE .*`([^`]+)`").unwrap();
+
     static ref KEYS_OR_CONTRAINTS: Regex  = RegexBuilder::new("^ +[A-Z]+.*$")
         .multi_line(true)
         .build()
