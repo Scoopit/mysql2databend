@@ -73,10 +73,16 @@ impl Parser {
         }
     }
 
-    pub fn output<W: Write>(&self, mut out: W, output_database_stmt: bool) -> std::io::Result<()> {
+    pub fn output_database_statements<W: Write>(&self, mut out: W) -> std::io::Result<()> {
         match self.current {
-            Stmt::CreateDatabase if output_database_stmt => out.write_all(&self.buf),
-            Stmt::Use if output_database_stmt => out.write_all(&self.buf),
+            Stmt::CreateDatabase => out.write_all(&self.buf),
+            Stmt::Use => out.write_all(&self.buf),
+            _ => Ok(()),
+        }
+    }
+
+    pub fn output_database_content<W: Write>(&self, mut out: W) -> std::io::Result<()> {
+        match self.current {
             Stmt::InsertInto | Stmt::CreateTable => out.write_all(&self.buf),
             _ => Ok(()),
         }

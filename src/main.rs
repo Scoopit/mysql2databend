@@ -60,6 +60,9 @@ fn main() -> Result<()> {
                 }
             }
         }
+        if !args.skip_database_stmt {
+            parser.output_database_statements(&stdout)?;
+        }
         if args.tables.len() > 0 {
             // filter by table
             if let Some(current_table) = &current_table {
@@ -69,7 +72,7 @@ fn main() -> Result<()> {
             }
         }
 
-        parser.output(&stdout, !args.skip_database_stmt)?;
+        parser.output_database_content(&stdout)?;
     }
 
     Ok(())
