@@ -90,24 +90,24 @@ impl Parser {
 }
 
 fn replace(buf: &mut Vec<u8>, regex: &Regex, capture_group: usize, replacement: &[u8]) {
-    for capture in regex
+    for capture_range in regex
         .captures_iter(buf)
         .map(|capture| capture.get(capture_group).unwrap().range())
         .collect::<Vec<_>>()
         .into_iter()
         .rev()
     {
-        buf.splice(capture, replacement.iter().copied());
+        buf.splice(capture_range, replacement.iter().copied());
     }
 }
 
 fn lower_case_columns(buf: &mut Vec<u8>) {
-    for capture in COLUMN
+    for capture_range in COLUMN
         .captures_iter(buf)
         .map(|capture| capture.get(1).unwrap().range())
         .collect::<Vec<_>>()
     {
-        let column = &mut buf[capture];
+        let column = &mut buf[capture_range];
         let lower_cased = column.to_ascii_lowercase();
         for i in 0..column.len() {
             column[i] = lower_cased[i];
