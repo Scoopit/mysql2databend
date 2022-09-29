@@ -13,6 +13,7 @@ Features:
 - modify `CREATE TABLE` statements (remove collation, transforms `DEFAULT NULL` to `NULL`)
 - filter out anything except `USE`, `CREATE TABLE`, `CREATE DATABASE` and `INSERT INTO`
 - optionnally filter out `USE` and `CREATE TABLE` statements
+- can output directly to databend http query api (not tested)
 
 ## License
 

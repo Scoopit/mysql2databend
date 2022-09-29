@@ -22,7 +22,8 @@ enum Stmt {
 }
 
 pub enum StateChange {
-    Database(String),
+    CreateDatabase(String),
+    UseDatabase(String),
     Table(String),
     None,
 }
@@ -52,11 +53,11 @@ impl Parser {
             self.buf.extend_from_slice(line);
 
             // one line statements (or ignorable ones)
-            if let Some(use_stmt) = CREATE_DB.captures(line) {
+            if let Some(create_db_stmt) = CREATE_DB.captures(line) {
                 self.current = Stmt::CreateDatabase;
-                let db = String::from_utf8(use_stmt.get(1).unwrap().as_bytes().to_vec())?;
+                let db = String::from_utf8(create_db_stmt.get(1).unwrap().as_bytes().to_vec())?;
 
-                Ok(StateChange::Database(db))
+                Ok(StateChange::CreateDatabase(db))
             } else if let Some(create_stmt) = DROP_TABLE.captures(&line) {
                 self.current = Stmt::DropTable;
                 let table = String::from_utf8(create_stmt.get(1).unwrap().as_bytes().to_vec())?;
@@ -65,9 +66,11 @@ impl Parser {
                 self.current = Stmt::InCreateTable;
                 let table = String::from_utf8(create_stmt.get(1).unwrap().as_bytes().to_vec())?;
                 Ok(StateChange::Table(table))
-            } else if USE.is_match(line) {
+            } else if let Some(use_stmt) = USE.captures(&line) {
                 self.current = Stmt::Use;
-                Ok(StateChange::None)
+                Ok(StateChange::UseDatabase(String::from_utf8(
+                    use_stmt.get(1).unwrap().as_bytes().to_vec(),
+                )?))
             } else if INSERT.is_match(line) {
                 self.current = Stmt::InsertInto;
                 Ok(StateChange::None)
@@ -78,7 +81,7 @@ impl Parser {
         }
     }
 
-    pub fn output_database_statements<W: Write>(&self, mut out: W) -> std::io::Result<()> {
+    pub fn output_database_statements<W: Write>(&self, out: &mut W) -> std::io::Result<()> {
         match self.current {
             Stmt::CreateDatabase => out.write_all(&self.buf),
             Stmt::Use => out.write_all(&self.buf),
@@ -86,7 +89,7 @@ impl Parser {
         }
     }
 
-    pub fn output_database_content<W: Write>(&self, mut out: W) -> std::io::Result<()> {
+    pub fn output_database_content<W: Write>(&self, out: &mut W) -> std::io::Result<()> {
         match self.current {
             Stmt::InsertInto | Stmt::CreateTable | Stmt::DropTable => out.write_all(&self.buf),
             _ => Ok(()),
