@@ -34,6 +34,10 @@ fn to_io_error<E: Into<Box<dyn Error + Send + Sync>>>(error: E) -> io::Error {
 
 impl Write for Output {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        let sql = String::from_utf8(buf.to_vec())
+            .map_err(to_io_error)?
+            .trim()
+            .to_string();
         let response = reqwest::blocking::Client::default()
             .post(
                 self.config
@@ -45,6 +49,7 @@ impl Write for Output {
             )
             .basic_auth(&self.config.user, self.config.password.as_ref())
             .json(&crate::databend_types::HttpQueryRequest {
+                sql,
                 session: self
                     .config
                     .force_database
@@ -54,7 +59,6 @@ impl Write for Output {
                         database: Some(db.to_string()),
                         ..Default::default()
                     }),
-                sql: String::from_utf8(buf.to_vec()).map_err(to_io_error)?,
                 pagination: Some(crate::databend_types::PaginationConf {
                     wait_time_secs: Some(120),
                     ..Default::default()
