@@ -1,11 +1,15 @@
 use std::{
     error::Error,
     io::{self, Write},
+    time::Duration,
 };
 
+use color_eyre::eyre::Context;
 use reqwest::Url;
 
 use crate::{databend_types::ExecuteStateKind, DatabendArgs};
+
+const MAX_EXECUTE_DURATION_SEC: usize = 120;
 
 pub(crate) struct Output {
     /// current database issued by `USE` keywords
@@ -38,7 +42,11 @@ impl Write for Output {
             .map_err(to_io_error)?
             .trim()
             .to_string();
-        let response = reqwest::blocking::Client::default()
+        let client = reqwest::blocking::ClientBuilder::default()
+            .timeout(Duration::from_secs(MAX_EXECUTE_DURATION_SEC as u64 + 1))
+            .build()
+            .unwrap(); // this cannot fail
+        let response = client
             .post(
                 self.config
                     .query_uri
@@ -49,7 +57,7 @@ impl Write for Output {
             )
             .basic_auth(&self.config.user, self.config.password.as_ref())
             .json(&crate::databend_types::HttpQueryRequest {
-                sql,
+                sql: sql.clone(),
                 session: self
                     .config
                     .force_database
@@ -60,17 +68,20 @@ impl Write for Output {
                         ..Default::default()
                     }),
                 pagination: Some(crate::databend_types::PaginationConf {
-                    wait_time_secs: Some(120),
+                    wait_time_secs: Some(MAX_EXECUTE_DURATION_SEC as u32),
                     ..Default::default()
                 }),
                 string_fields: None,
                 session_id: None,
             })
             .send()
+            .with_context(|| format!("Cannot execute {sql}"))
             .map_err(to_io_error)?
             .error_for_status()
+            .with_context(|| format!("Cannot execute {sql}"))
             .map_err(to_io_error)?
             .json::<crate::databend_types::QueryResponse>()
+            .with_context(|| format!("Cannot execute {sql}"))
             .map_err(to_io_error)?;
 
         match response.state {
