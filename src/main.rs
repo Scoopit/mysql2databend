@@ -1,6 +1,7 @@
 use std::{
     fs::File,
     io::{self, BufRead, BufReader},
+    time::Instant,
 };
 
 use clap::{Args, Parser, Subcommand};
@@ -69,7 +70,7 @@ pub(crate) struct DatabendArgs {
 fn main() -> Result<()> {
     color_eyre::install()?;
     let args = Opts::parse();
-
+    let start = Instant::now();
     let mut input: Box<dyn BufRead> = match &args.input_file {
         None => Box::new(io::stdin().lock()),
         Some(file) => {
@@ -156,6 +157,11 @@ fn main() -> Result<()> {
         }
         parser.output_database_content(&mut output)?;
     }
+    let processing_duration = start.elapsed();
+    eprintln!(
+        "Ended in {}",
+        humantime::format_duration(processing_duration)
+    );
 
     Ok(())
 }
