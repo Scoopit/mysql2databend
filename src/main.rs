@@ -1,4 +1,7 @@
-use std::io::{self, BufRead};
+use std::{
+    fs::File,
+    io::{self, BufRead, BufReader},
+};
 
 use clap::{Args, Parser, Subcommand};
 use color_eyre::eyre::{Context, Result};
@@ -20,6 +23,12 @@ struct Opts {
     /// Skip USE and CREATE DATABASE statements
     #[arg(short, long, value_parser)]
     skip_database_stmt: bool,
+
+    /// Read data from a file.
+    ///
+    /// If the filename ends with a .gz extention, try to gunzip...
+    #[arg(short, long)]
+    input_file: Option<String>,
 
     /// Allow to control where is output filtered statements
     #[command(subcommand)]
@@ -61,7 +70,19 @@ fn main() -> Result<()> {
     color_eyre::install()?;
     let args = Opts::parse();
 
-    let mut stdin = io::stdin().lock();
+    let mut input: Box<dyn BufRead> = match &args.input_file {
+        None => Box::new(io::stdin().lock()),
+        Some(file) => {
+            if file.ends_with(".gz") {
+                Box::new(BufReader::new(flate2::read::GzDecoder::new(File::open(
+                    file,
+                )?)))
+            } else {
+                Box::new(BufReader::new(File::open(file)?))
+            }
+        }
+    };
+
     let mut stdout = io::stdout();
 
     let mut current_db = None;
@@ -87,7 +108,7 @@ fn main() -> Result<()> {
         buf.truncate(0);
 
         line_num += 1;
-        stdin
+        input
             .read_until(b'\n', &mut buf)
             .with_context(|| format!("Cannot read dump from stdin at line {line_num}"))?;
         if buf.len() == 0 {
